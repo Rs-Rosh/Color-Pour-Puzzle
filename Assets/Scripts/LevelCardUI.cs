@@ -8,35 +8,58 @@ public class LevelCardUI : MonoBehaviour
 
     public TextMeshProUGUI levelText;
 
-    [Header("Sprites")]
-    public Sprite easySprite;
+    [Header("Easy")]
+    public Sprite easyNormal;
+    public Sprite easyCurrent;
 
-    public Sprite mediumSprite;
+    [Header("Medium")]
+    public Sprite mediumNormal;
+    public Sprite mediumCurrent;
 
-    public Sprite hardSprite;
+    [Header("Hard")]
+    public Sprite hardNormal;
+    public Sprite hardCurrent;
 
-    public void Setup(int levelNumber)
+    private int levelNumber;
+
+    public void Setup(int level)
     {
-        levelText.text = levelNumber.ToString();
+        levelNumber = level;
 
+        levelText.text = level.ToString();
+
+        SetCurrent(false);
+    }
+
+    public void SetCurrent(bool isCurrent)
+    {
         int type = levelNumber % 5;
 
         // Easy
         if (type == 1 || type == 2)
         {
-            backgroundImage.sprite = easySprite;
+            backgroundImage.sprite =
+                isCurrent
+                ? easyCurrent
+                : easyNormal;
         }
 
         // Medium
         else if (type == 3 || type == 4)
         {
-            backgroundImage.sprite = mediumSprite;
+            backgroundImage.sprite =
+                isCurrent
+                ? mediumCurrent
+                : mediumNormal;
         }
 
         // Hard
         else
         {
-            backgroundImage.sprite = hardSprite;
+            backgroundImage.sprite =
+                isCurrent
+                ? hardCurrent
+                : hardNormal;
         }
     }
 }

@@ -301,6 +301,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   backgroundImage: {fileID: 6204629020853107069}
   levelText: {fileID: 8244250682856387554}
-  easySprite: {fileID: 21300000, guid: a68046f316c35ec4a92032617f945e43, type: 3}
-  mediumSprite: {fileID: 21300000, guid: 764cd6c6e71020f46bc5626b8e80660b, type: 3}
-  hardSprite: {fileID: 21300000, guid: c3522669a3f12e94eb6388f7802d77d4, type: 3}
+  easyNormal: {fileID: 21300000, guid: 764cd6c6e71020f46bc5626b8e80660b, type: 3}
+  easyCurrent: {fileID: 21300000, guid: 3f67f196e4f102a44bd86ee50791609a, type: 3}
+  mediumNormal: {fileID: 21300000, guid: 764cd6c6e71020f46bc5626b8e80660b, type: 3}
+  mediumCurrent: {fileID: 21300000, guid: 3f67f196e4f102a44bd86ee50791609a, type: 3}
+  hardNormal: {fileID: 21300000, guid: c3522669a3f12e94eb6388f7802d77d4, type: 3}
+  hardCurrent: {fileID: 21300000, guid: eefc2f960598ab34aa285bb6ee5ed8fb, type: 3}

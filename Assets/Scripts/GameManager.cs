@@ -31,9 +31,17 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI coinText;
     public TextMeshProUGUI lifeText;
     public TextMeshProUGUI levelCompleteText;
+    
+    [Header("Undo Popup")]
+    public GameObject undoPopup;
+
+    public TextMeshProUGUI undoText;
 
     [Header("Level Track")]
     public Transform levelTrackContainer;
+
+    [Header("Restart Popups")]
+    public GameObject restartPopup;
 
     public Transform[] cardPositions;
 
@@ -42,13 +50,16 @@ public class GameManager : MonoBehaviour
     private List<LevelCardUI> activeCards =
     new List<LevelCardUI>();
 
+    private List<List<Tube.TubeColor>> levelSnapshot =
+    new List<List<Tube.TubeColor>>();
+
     void Start()
     {
         LoadPlayerData();
         UpdateUI();
         BuildLevelTrack();
 
-        homePanel.SetActive(true);
+       // homePanel.SetActive(true);
         gameplayPanel.SetActive(false);
         winPanel.SetActive(false);
         losePanel.SetActive(false);
@@ -336,6 +347,7 @@ public class GameManager : MonoBehaviour
             rewardCoins = 50;
             // Hard reward
             lives += 1;
+            undoCount += 1;
         }
         coins += rewardCoins;
         levelCompleteText.text = "Level " + currentLevel + " Completed";
@@ -367,10 +379,24 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Hide lose panel
         losePanel.SetActive(false);
+
+        // Show gameplay
         gameplayPanel.SetActive(true);
 
-        GenerateLevel();
+        // Clear any selected tube
+        if (selectedTube != null)
+        {
+            selectedTube.DeselectTube();
+            selectedTube = null;
+        }
+
+        // Reset locked tube
+        isLockedTubeUnlocked = false;
+
+        // Restore the original puzzle
+        RestoreLevelSnapshot();
     }
 
     public void CollectReward()
@@ -394,24 +420,89 @@ public class GameManager : MonoBehaviour
         });
     }
 
+    public void ShowRestartPopup()
+    {
+        restartPopup.SetActive(true);
+    }
+
+    public void CancelRestart()
+    {
+        restartPopup.SetActive(false);
+    }
+
     public void RestartLevel()
     {
-        // No life left
-        if (lives <= 0)
+        restartPopup.SetActive(false);
+
+        // Need at least 2 lives
+        if (lives < 2)
         {
             LoseLevel();
+            return;
+        }
+
+        // Deduct 2 lives
+        lives -= 2;
+
+        if (selectedTube != null)
+        {
+            selectedTube.DeselectTube();
+            selectedTube = null;
+        }
+
+        isLockedTubeUnlocked = false;
+
+        RestoreLevelSnapshot();
+
+        UpdateUI();
+        SavePlayerData();
+    }
+
+    public void ShowUndoPopup()
+    {
+        undoPopup.SetActive(true);
+    }
+
+    public void CloseUndoPopup()
+    {
+        undoPopup.SetActive(false);
+    }
+
+    public void OnUndoButtonPressed()
+    {
+        if (undoCount > 0)
+        {
+            // Actual undo will come in Phase 2
+            Debug.Log("Undo Move");
 
             return;
         }
 
-        // Deduct life
-        lives--;
+        ShowUndoPopup();
+    }
+
+    public void BuyUndo()
+    {
+        if (coins < 50)
+        {
+            Debug.Log("Not enough coins");
+            return;
+        }
+
+        coins -= 50;
+
+        undoCount++;
 
         UpdateUI();
+
         SavePlayerData();
 
-        // Regenerate level
-        GenerateLevel();
+        undoPopup.SetActive(false);
+    }
+
+    public void WatchAdUndo()
+    {
+        Debug.Log("Rewarded Ads Coming Soon");
     }
 
     // UPDATE UI
@@ -420,6 +511,8 @@ public class GameManager : MonoBehaviour
         coinText.text = coins.ToString();
 
         lifeText.text = lives.ToString();
+
+        undoText.text = undoCount.ToString();
     }
 
     void BuildLevelTrack()
@@ -455,12 +548,15 @@ public class GameManager : MonoBehaviour
             activeCards.Add(card);
         }
 
-       // HighlightCurrentCard();
+        HighlightCurrentCard();
     }
 
     void HighlightCurrentCard()
     {
-       // no highlight current level feature for now
+        for (int i = 0; i < activeCards.Count; i++)
+        {
+            activeCards[i].SetCurrent(i == 5);
+        }
     }
 
     void AnimateLevelProgression()
@@ -474,15 +570,21 @@ public class GameManager : MonoBehaviour
         Sequence seq = DOTween.Sequence();
 
         // Move all remaining cards DOWN one slot
-        for (int i = activeCards.Count - 2; i >= 0; i--)
+        completedCard.GetComponent<RectTransform>()
+        .DOMoveY(cardPositions[5].position.y - 300f,duration * 0.8f)
+        .SetEase(Ease.InOutSine);
+        DOVirtual.DelayedCall(0.12f, () =>
         {
-            activeCards[i]
-                .GetComponent<RectTransform>()
-                .DOMove(
-                    cardPositions[i + 1].position,
-                    duration)
-                .SetEase(Ease.OutQuad);
-        }
+            for (int i = activeCards.Count - 2; i >= 0; i--)
+            {
+                activeCards[i]
+                    .GetComponent<RectTransform>()
+                    .DOMove(
+                        cardPositions[i + 1].position,
+                        duration)
+                    .SetEase(Ease.InOutSine);
+            }
+        });
 
         // Current level exits bottom
         completedCard
@@ -490,7 +592,7 @@ public class GameManager : MonoBehaviour
             .DOMoveY(
                 cardPositions[5].position.y - 300f,
                 duration)
-            .SetEase(Ease.OutQuad);
+            .SetEase(Ease.InOutSine);
 
         seq.AppendInterval(duration);
 
@@ -532,9 +634,9 @@ public class GameManager : MonoBehaviour
             newRect.DOMove(
                 cardPositions[0].position,
                 duration)
-                .SetEase(Ease.OutQuad);
+                .SetEase(Ease.InOutSine);
 
-           // HighlightCurrentCard();
+            HighlightCurrentCard();
         });
     }
 
@@ -645,6 +747,38 @@ public class GameManager : MonoBehaviour
         allTubes[5].RefreshTubeVisual();
         allTubes[6].RefreshTubeVisual();
         allTubes[7].RefreshTubeVisual();
+
+        SaveLevelSnapshot();
+    }
+
+    // Reset Game 
+    void SaveLevelSnapshot()
+    {
+        levelSnapshot.Clear();
+
+        foreach (Tube tube in allTubes)
+        {
+            List<Tube.TubeColor> colors =
+                new List<Tube.TubeColor>();
+
+            colors.AddRange(tube.colors);
+
+            levelSnapshot.Add(colors);
+        }
+    }
+
+    void RestoreLevelSnapshot()
+    {
+        for (int i = 0; i < allTubes.Length; i++)
+        {
+            allTubes[i].colors.Clear();
+
+            allTubes[i].colors.AddRange(levelSnapshot[i]);
+
+            allTubes[i].RefreshTubeVisual();
+        }
+
+        isLockedTubeUnlocked = false;
     }
 
     public void ResetData()
