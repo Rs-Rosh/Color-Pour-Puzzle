@@ -15,17 +15,25 @@ public class GameManager : MonoBehaviour
     public Tube selectedTube;
     public Tube[] allTubes;
 
+    private Stack<MoveData> moveHistory =
+    new Stack<MoveData>();
+
     [Header("Locked Tube")]
     public Tube lockedTube;
     public bool isLockedTubeUnlocked = false;
 
     [Header("Player Data")]
     public int coins = 100;
-    public int lives = 1;
+    public int lives = 10;
     public int undoCount = 1;
 
     [Header("Level")]
     public int currentLevel = 1;
+
+    [Header("Unlock Tube")]
+    public GameObject unlockPopup;
+
+    public int unlockTubeCost = 100;
 
     [Header("UI")]
     public TextMeshProUGUI coinText;
@@ -43,6 +51,9 @@ public class GameManager : MonoBehaviour
     [Header("Restart Popups")]
     public GameObject restartPopup;
 
+    [Header("Exit Popup")]
+    public GameObject exitPopup;
+
     public Transform[] cardPositions;
 
     public GameObject levelCardPrefab;
@@ -58,11 +69,24 @@ public class GameManager : MonoBehaviour
         LoadPlayerData();
         UpdateUI();
         BuildLevelTrack();
-
-       // homePanel.SetActive(true);
         gameplayPanel.SetActive(false);
         winPanel.SetActive(false);
         losePanel.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (gameplayPanel.activeSelf && !exitPopup.activeSelf)
+            {
+                ShowExitPopup();
+            }
+            else if (exitPopup.activeSelf)
+            {
+                ContinuePlaying();
+            }
+        }
     }
 
     // START GAMEPLAY
@@ -91,7 +115,19 @@ public class GameManager : MonoBehaviour
         if (clickedTube == lockedTube &&
             !isLockedTubeUnlocked)
         {
-            Debug.Log("Tube Locked");
+            // If no tube is currently selected, just show unlock popup
+            if (selectedTube == null)
+            {
+                ShowUnlockPopup();
+                return;
+            }
+
+            // If a tube is already selected and player taps the locked tube,
+            // cancel the selection first so no tube remains highlighted.
+            selectedTube.DeselectTube();
+            selectedTube = null;
+
+            ShowUnlockPopup();
             return;
         }
 
@@ -238,7 +274,14 @@ public class GameManager : MonoBehaviour
                 toTube.AddColor(movingColor);
             }
 
+            moveHistory.Push( new MoveData(
+                fromTube,
+                toTube,
+                movingColor,
+                pourAmount));
+
             CheckWinCondition();
+            CheckLoseCondition();
         });
 
         seq.AppendInterval(0.08f);
@@ -472,9 +515,7 @@ public class GameManager : MonoBehaviour
     {
         if (undoCount > 0)
         {
-            // Actual undo will come in Phase 2
-            Debug.Log("Undo Move");
-
+            UseUndo();
             return;
         }
 
@@ -500,9 +541,107 @@ public class GameManager : MonoBehaviour
         undoPopup.SetActive(false);
     }
 
+    public void UseUndo()
+    {
+        // No undo available
+        if (undoCount <= 0)
+        {
+            return;
+        }
+
+        // No moves to undo
+        if (moveHistory.Count == 0)
+        {
+            Debug.Log("No moves to undo.");
+            return;
+        }
+
+        MoveData lastMove = moveHistory.Pop();
+
+        // Move the colors back
+        for (int i = 0; i < lastMove.amount; i++)
+        {
+            lastMove.toTube.RemoveTopColor();
+            lastMove.fromTube.AddColor(lastMove.color);
+        }
+
+        // Consume one undo
+        undoCount--;
+
+        UpdateUI();
+        SavePlayerData();
+    }
+
     public void WatchAdUndo()
     {
         Debug.Log("Rewarded Ads Coming Soon");
+    }
+
+    public void ShowUnlockPopup()
+    {
+        unlockPopup.SetActive(true);
+    }
+
+    public void CloseUnlockPopup()
+    {
+        unlockPopup.SetActive(false);
+    }
+
+    public void UnlockTubeWithCoins()
+    {
+        if (coins < unlockTubeCost)
+        {
+            Debug.Log("Not enough coins.");
+            return;
+        }
+
+        coins -= unlockTubeCost;
+
+        isLockedTubeUnlocked = true;
+
+        unlockPopup.SetActive(false);
+        lockedTube.SetLocked(false);
+
+        UpdateUI();
+
+        SavePlayerData();
+    }
+
+    public void UnlockTubeWithAd()
+    {
+        Debug.Log("Rewarded Ad Coming Soon");
+    }
+
+    public void ShowExitPopup()
+    {
+        exitPopup.SetActive(true);
+    }
+
+    public void ContinuePlaying()
+    {
+        exitPopup.SetActive(false);
+    }
+
+    public void LeaveGameplay()
+    {
+        exitPopup.SetActive(false);
+
+        // Deselect selected tube
+        if (selectedTube != null)
+        {
+            selectedTube.DeselectTube();
+            selectedTube = null;
+        }
+
+        gameplayPanel.SetActive(false);
+
+        winPanel.SetActive(false);
+
+        losePanel.SetActive(false);
+
+        moveHistory.Clear();
+
+        homePanel.SetActive(true);
     }
 
     // UPDATE UI
@@ -659,10 +798,10 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.GetInt("Coins", 100);
 
         lives =
-            PlayerPrefs.GetInt("Lives", 5);
+            PlayerPrefs.GetInt("Lives", 05);
 
         undoCount =
-            PlayerPrefs.GetInt("Undo", 0);
+            PlayerPrefs.GetInt("Undo", 1);
 
         currentLevel =
             PlayerPrefs.GetInt("Level", 1);
@@ -671,6 +810,7 @@ public class GameManager : MonoBehaviour
     // GENERATE LEVEL
     void GenerateLevel()
     {
+        moveHistory.Clear();
         // Clear all tubes
         foreach (Tube tube in allTubes)
         {
@@ -681,6 +821,7 @@ public class GameManager : MonoBehaviour
 
         // Reset locked tube
         isLockedTubeUnlocked = false;
+        lockedTube.SetLocked(true);
 
         // 5 gameplay colors
         Tube.TubeColor[] possibleColors =
@@ -769,6 +910,7 @@ public class GameManager : MonoBehaviour
 
     void RestoreLevelSnapshot()
     {
+        moveHistory.Clear();
         for (int i = 0; i < allTubes.Length; i++)
         {
             allTubes[i].colors.Clear();
@@ -779,6 +921,7 @@ public class GameManager : MonoBehaviour
         }
 
         isLockedTubeUnlocked = false;
+        lockedTube.SetLocked(true);
     }
 
     public void ResetData()

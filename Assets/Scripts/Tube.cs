@@ -25,13 +25,18 @@ public class Tube : MonoBehaviour
     [Header("Pour Point")]
     public RectTransform pourPoint;
 
+    [Header("Lock")]
+    public GameObject lockIcon;
+
+    public bool isLocked = false;
+
     private Vector3 originalScale;
 
     void Start()
     {
         originalScale = transform.localScale;
-
         RefreshTubeVisual();
+        SetLocked(isLocked);
     }
 
     // Refresh water visuals
@@ -150,5 +155,15 @@ public class Tube : MonoBehaviour
         }
 
         return true;
+    }
+
+    public void SetLocked(bool locked)
+    {
+        isLocked = locked;
+
+        if (lockIcon != null)
+        {
+            lockIcon.SetActive(locked);
+        }
     }
 }
